@@ -1,0 +1,10 @@
+{
+  "Name": "sus_nsis_tampered_signature",
+  "Tags": [
+    "TESTING",
+    "SUSPICIOUS",
+    "TA0005",
+    "T1027",
+    "T1027_005"
+  ]
+}
