@@ -1,7 +1,6 @@
 package analytics
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -23,18 +22,12 @@ const (
 	ScatterPlot ChartType = "scatter"
 	// PieChart represents the pie chart type
 	PieChart ChartType = "pie"
-	// AreaChart represents the area chart type
-	AreaChart ChartType = "area"
-	// HistogramChart represents the histogram chart type
-	HistogramChart ChartType = "histogram"
 	// BoxPlotChart represents the box plot chart type
 	BoxPlotChart ChartType = "boxplot"
 	// HeatmapChart represents the heatmap chart type
 	HeatmapChart ChartType = "heatmap"
 	// RadarChart represents the radar chart type
 	RadarChart ChartType = "radar"
-	// DoughnutChart represents the doughnut chart type
-	DoughnutChart ChartType = "doughnut"
 	// GaugeChart represents the gauge chart type
 	GaugeChart ChartType = "gauge"
 	// FunnelChart represents the funnel chart type
@@ -51,8 +44,6 @@ const (
 	KlineChart ChartType = "kline"
 	// ParallelChart represents the parallel chart type
 	ParallelChart ChartType = "parallel"
-	// RectangleChart represents the rectangle chart type
-	RectangleChart ChartType = "rectangle"
 	// SunburstChart represents the sunburst chart type
 	SunburstChart ChartType = "sunburst"
 	// SurfaceChart represents the surface chart type
@@ -86,6 +77,52 @@ func renderChartToFile(chart components.Charter, outputPath string) error {
 	return nil
 }
 
+// GenerateChart function returns the appropriate chart generator based on the specified chart type.
+func GenerateChart(params ChartParams) (ChartGenerator, error) {
+	switch params.Type {
+	case BarChart:
+		return &BarChartGenerator{}, nil
+	case LineChart:
+		return &LineChartGenerator{}, nil
+	case ScatterPlot:
+		return &ScatterPlotGenerator{}, nil
+	case PieChart:
+		return &PieChartGenerator{}, nil
+	case BoxPlotChart:
+		return &BoxPlotGenerator{}, nil
+	case HeatmapChart:
+		return &HeatmapGenerator{}, nil
+	case RadarChart:
+		return &RadarChartGenerator{}, nil
+	case GaugeChart:
+		return &GaugeChartGenerator{}, nil
+	case FunnelChart:
+		return &FunnelChartGenerator{}, nil
+	case SankeyChart:
+		return &SankeyChartGenerator{}, nil
+	case WordCloudChart:
+		return &WordCloudChartGenerator{}, nil
+	case TreemapChart:
+		return &TreemapChartGenerator{}, nil
+	case GraphChart:
+		return &GraphChartGenerator{}, nil
+	case KlineChart:
+		return &KlineChartGenerator{}, nil
+	case ParallelChart:
+		return &ParallelChartGenerator{}, nil
+	case SunburstChart:
+		return &SunburstChartGenerator{}, nil
+	case SurfaceChart:
+		return &SurfaceChartGenerator{}, nil
+	case ThemeRiverChart:
+		return &ThemeRiverChartGenerator{}, nil
+	case TreeChart:
+		return &TreeChartGenerator{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported chart type: %s", params.Type)
+	}
+}
+
 // ChartGenerator represents an interface for chart generation functionality
 type ChartGenerator interface {
 	Generate(params ChartParams) error // Generate chart function
@@ -113,12 +150,20 @@ func (bcg *BarChartGenerator) Generate(params ChartParams) error {
 	}
 
 	// Create data for the chart
-	var barData []opts.BarData
+	var xAxisData []string
+	var seriesData []opts.BarData
 	for tag, count := range tagCounts {
-		barData = append(barData, opts.BarData{Name: tag, Value: count})
+		xAxisData = append(xAxisData, tag)
+		seriesData = append(seriesData, opts.BarData{Value: count})
 	}
 
-	bar.AddSeries("Count", barData)
+	bar.SetXAxis(xAxisData).
+		AddSeries("Count", seriesData,
+			charts.WithLabelOpts(opts.Label{
+				Show:      true,
+				Position:  "top",
+				Formatter: "{c}",
+			}))
 
 	// Write the chart to a file
 	return renderChartToFile(bar, params.Output)
@@ -146,12 +191,15 @@ func (lcg *LineChartGenerator) Generate(params ChartParams) error {
 	}
 
 	// Create data for the chart
+	var xAxisData []string
 	var lineData []opts.LineData
 	for tag, count := range tagCounts {
-		lineData = append(lineData, opts.LineData{Name: tag, Value: count})
+		xAxisData = append(xAxisData, tag)
+		lineData = append(lineData, opts.LineData{Value: count})
 	}
 
-	line.AddSeries("Count", lineData)
+	line.SetXAxis(xAxisData).
+		AddSeries("Count", lineData)
 
 	// Write the chart to a file
 	return renderChartToFile(line, params.Output)
@@ -180,24 +228,17 @@ func (spg *ScatterPlotGenerator) Generate(params ChartParams) error {
 
 	// Create data for the chart
 	var scatterData []opts.ScatterData
+	var xAxisData []string
 	for tag, count := range tagCounts {
-		scatterData = append(scatterData, opts.ScatterData{Name: tag, Value: count})
+		xAxisData = append(xAxisData, tag)
+		scatterData = append(scatterData, opts.ScatterData{Value: []interface{}{tag, count}})
 	}
 
-	scatter.AddSeries("Count", scatterData)
+	// Add series to scatter plot
+	scatter.SetXAxis(xAxisData).AddSeries("Count", scatterData)
 
 	// Write the chart to a file
-	f, err := os.Create(params.Output)
-	if err != nil {
-		return fmt.Errorf("error creating file: %w", err)
-	}
-	defer f.Close()
-
-	page := components.NewPage()
-	page.AddCharts(scatter)
-	page.Render(f)
-
-	return nil
+	return renderChartToFile(scatter, params.Output)
 }
 
 // PieChartGenerator is an implementation for generating pie charts
@@ -213,101 +254,29 @@ func (pcg *PieChartGenerator) Generate(params ChartParams) error {
 		}),
 	)
 
-	// Calculate tag distribution
+	// Calculate tag distribution and total count
 	tagCounts := make(map[string]int)
+	totalCount := 0
 	for _, tags := range params.Data {
 		for _, tag := range tags {
 			tagCounts[tag]++
+			totalCount++
 		}
 	}
 
 	// Create data for the chart
 	var pieData []opts.PieData
 	for tag, count := range tagCounts {
-		pieData = append(pieData, opts.PieData{Name: tag, Value: count})
+		// Calculate percentage
+		percentage := float64(count) / float64(totalCount) * 100
+		label := fmt.Sprintf("{b}: %d (%.2f%%)", count, percentage)
+		pieData = append(pieData, opts.PieData{Name: tag, Value: count, Label: &opts.Label{Show: true, Formatter: label}})
 	}
 
-	pie.SetSeriesOptions(
-		charts.WithLabelOpts(
-			opts.Label{
-				Show:      true,
-				Formatter: "{b}: {c}",
-			},
-		),
-	)
 	pie.AddSeries("Count", pieData)
 
 	// Write the chart to a file
 	return renderChartToFile(pie, params.Output)
-}
-
-// AreaChartGenerator is an implementation for generating area charts
-type AreaChartGenerator struct{}
-
-// Generate implements the function to generate area charts
-func (acg *AreaChartGenerator) Generate(params ChartParams) error {
-	// Create an area chart
-	area := charts.NewLine()
-	area.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: params.Title,
-		}),
-	)
-
-	// Calculate tag distribution
-	tagCounts := make(map[string]int)
-	for _, tags := range params.Data {
-		for _, tag := range tags {
-			tagCounts[tag]++
-		}
-	}
-
-	// Create data for the chart
-	var areaData []opts.LineData
-	for tag, count := range tagCounts {
-		areaData = append(areaData, opts.LineData{Name: tag, Value: count})
-	}
-
-	area.SetSeriesOptions(
-		charts.WithAreaStyleOpts(opts.AreaStyle{}),
-	)
-	area.AddSeries("Count", areaData)
-
-	// Write the chart to a file
-	return renderChartToFile(area, params.Output)
-}
-
-// HistogramChartGenerator is an implementation for generating histogram charts
-type HistogramChartGenerator struct{}
-
-// Generate implements the function to generate histogram charts
-func (hcg *HistogramChartGenerator) Generate(params ChartParams) error {
-	// Create a histogram chart
-	histogram := charts.NewBar()
-	histogram.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: params.Title,
-		}),
-	)
-
-	// Calculate tag distribution
-	tagCounts := make(map[string]int)
-	for _, tags := range params.Data {
-		for _, tag := range tags {
-			tagCounts[tag]++
-		}
-	}
-
-	// Create data for the chart
-	var histogramData []opts.BarData
-	for tag, count := range tagCounts {
-		histogramData = append(histogramData, opts.BarData{Name: tag, Value: count})
-	}
-
-	histogram.AddSeries("Count", histogramData)
-
-	// Write the chart to a file
-	return renderChartToFile(histogram, params.Output)
 }
 
 // BoxPlotGenerator is an implementation for generating box plots
@@ -332,11 +301,14 @@ func (bpg *BoxPlotGenerator) Generate(params ChartParams) error {
 	}
 
 	// Create data for the chart
+	var xAxisData []string
 	var boxplotData []opts.BoxPlotData
 	for tag, count := range tagCounts {
+		xAxisData = append(xAxisData, tag)
 		boxplotData = append(boxplotData, opts.BoxPlotData{Name: tag, Value: count})
 	}
 
+	boxplot.SetXAxis(xAxisData)
 	boxplot.AddSeries("Count", boxplotData)
 
 	// Write the chart to a file
@@ -346,14 +318,12 @@ func (bpg *BoxPlotGenerator) Generate(params ChartParams) error {
 // HeatmapGenerator is an implementation for generating heatmaps
 type HeatmapGenerator struct{}
 
-// Generate implements the function to generate heatmaps
+// Generate function creates heatmaps based on provided parameters
 func (hmg *HeatmapGenerator) Generate(params ChartParams) error {
-	if params.Type != HeatmapChart {
-		return errors.New("invalid chart type for HeatmapGenerator")
-	}
-
-	// Create a heatmap
+	// Create a new heatmap instance
 	heatmap := charts.NewHeatMap()
+
+	// Set global options for the heatmap
 	heatmap.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
 			Title: params.Title,
@@ -376,20 +346,26 @@ func (hmg *HeatmapGenerator) Generate(params ChartParams) error {
 		}),
 	)
 
+	// Calculate tag counts
+	tagCounts := make(map[string]int)
+	for _, tags := range params.Data {
+		for _, tag := range tags {
+			tagCounts[tag]++
+		}
+	}
+
 	// Generate heatmap data
 	var data []opts.HeatMapData
 	for rule, tags := range params.Data {
 		for _, tag := range tags {
-			if tag == "-" {
-				data = append(data, opts.HeatMapData{Value: [3]interface{}{tag, rule, "-"}})
-			} else {
-				data = append(data, opts.HeatMapData{Value: [3]interface{}{tag, rule, tag}})
-			}
+			// Set the numerical value as the count of the respective tag
+			count := tagCounts[tag]
+			data = append(data, opts.HeatMapData{Value: [3]interface{}{tag, rule, count}})
 		}
 	}
 
 	// Add series to the heatmap
-	heatmap.AddSeries("heatmap", data)
+	heatmap.AddSeries("Count", data)
 
 	// Write the chart to a file
 	return renderChartToFile(heatmap, params.Output)
@@ -410,8 +386,8 @@ func (rcg *RadarChartGenerator) Generate(params ChartParams) error {
 
 	// Prepare radar indicator data
 	indicators := make([]*opts.Indicator, 0)
-	for tag := range params.Data {
-		indicators = append(indicators, &opts.Indicator{Name: tag})
+	for rule := range params.Data {
+		indicators = append(indicators, &opts.Indicator{Name: rule})
 	}
 
 	// Prepare radar series data
@@ -427,45 +403,13 @@ func (rcg *RadarChartGenerator) Generate(params ChartParams) error {
 	// Set radar options
 	radar.SetGlobalOptions(charts.WithRadarComponentOpts(opts.RadarComponent{
 		Indicator: indicators,
-	})).AddSeries("Data", seriesData)
+	}))
+
+	// Add series to the radar
+	radar.AddSeries("Data", seriesData)
 
 	// Write the chart to a file
 	return renderChartToFile(radar, params.Output)
-}
-
-// DoughnutChartGenerator is an implementation for generating doughnut charts
-type DoughnutChartGenerator struct{}
-
-// Generate implements the function to generate doughnut charts
-func (dcg *DoughnutChartGenerator) Generate(params ChartParams) error {
-	// Create a doughnut chart
-	doughnut := charts.NewPie()
-	doughnut.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: params.Title,
-		}),
-	)
-
-	// Prepare data for the doughnut chart
-	var data []opts.PieData
-	for tag, tags := range params.Data {
-		var count float32 = 0
-		for _, val := range tags {
-			// Convert string values to float32 for data processing
-			floatValue, err := strconv.ParseFloat(val, 32)
-			if err != nil {
-				return err
-			}
-			count += float32(floatValue)
-		}
-		data = append(data, opts.PieData{Name: tag, Value: count})
-	}
-
-	// Add series data to the doughnut chart
-	doughnut.AddSeries("Data", data)
-
-	// Write the chart to a file
-	return renderChartToFile(doughnut, params.Output)
 }
 
 // GaugeChartGenerator is an implementation for generating gauge charts
@@ -697,4 +641,209 @@ func (gcg *GraphChartGenerator) Generate(params ChartParams) error {
 
 	// Render the chart to a file
 	return renderChartToFile(graph, params.Output)
+}
+
+// KlineChartGenerator is an implementation for generating kline charts
+type KlineChartGenerator struct{}
+
+// Generate implements the function to generate kline charts
+func (kcg *KlineChartGenerator) Generate(params ChartParams) error {
+	// Create a new kline chart
+	kline := charts.NewKLine()
+	// Set global options for the kline chart
+	kline.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: params.Title,
+		}),
+	)
+
+	// Prepare data for the kline chart
+	klineData := make([]opts.KlineData, 0)
+	for date, values := range params.Data {
+		open, _ := strconv.ParseFloat(values[0], 64)
+		close, _ := strconv.ParseFloat(values[1], 64)
+		low, _ := strconv.ParseFloat(values[2], 64)
+		high, _ := strconv.ParseFloat(values[3], 64)
+		klineData = append(klineData, opts.KlineData{Value: [4]float64{open, close, low, high}, Name: date})
+	}
+
+	// Add series data to the kline chart
+	kline.AddSeries("Kline", klineData)
+
+	// Render the chart to a file
+	return renderChartToFile(kline, params.Output)
+}
+
+// ParallelChartGenerator is an implementation for generating parallel charts
+type ParallelChartGenerator struct{}
+
+// Generate implements the function to generate parallel charts
+func (pcg *ParallelChartGenerator) Generate(params ChartParams) error {
+	// Create a new parallel chart
+	parallel := charts.NewParallel()
+	// Set global options for the parallel chart
+	parallel.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: params.Title,
+		}),
+	)
+
+	// Prepare data for the parallel chart
+	parallelData := make([]opts.ParallelData, 0)
+	for _, tags := range params.Data {
+		// Convert string values to float64 for data processing
+		values := make([]interface{}, len(tags))
+		for i, val := range tags {
+			floatValue, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return err
+			}
+			values[i] = floatValue
+		}
+		parallelData = append(parallelData, opts.ParallelData{Value: values})
+	}
+
+	// Add series data to the parallel chart
+	parallel.AddSeries("Data", parallelData)
+
+	// Render the chart to a file
+	return renderChartToFile(parallel, params.Output)
+}
+
+// SunburstChartGenerator is an implementation for generating sunburst charts
+type SunburstChartGenerator struct{}
+
+// Generate implements the function to generate sunburst charts
+func (scg *SunburstChartGenerator) Generate(params ChartParams) error {
+	// Create a new sunburst chart
+	sunburst := charts.NewSunburst()
+	// Set global options for the sunburst chart
+	sunburst.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: params.Title,
+		}),
+	)
+
+	// Prepare data for the sunburst chart
+	sunburstData := make([]opts.SunBurstData, 0)
+	for ruleName, tags := range params.Data {
+		for _, val := range tags {
+			// Convert string values to float64 for data processing
+			floatValue, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return err
+			}
+			sunburstData = append(sunburstData, opts.SunBurstData{Name: ruleName, Value: floatValue})
+		}
+	}
+
+	// Add series data to the sunburst chart
+	sunburst.AddSeries("Data", sunburstData)
+
+	// Render the chart to a file
+	return renderChartToFile(sunburst, params.Output)
+}
+
+// SurfaceChartGenerator is an implementation for generating surface charts
+type SurfaceChartGenerator struct{}
+
+// Generate implements the function to generate surface charts
+func (scg *SurfaceChartGenerator) Generate(params ChartParams) error {
+	// Create a new surface chart
+	surface := charts.NewSurface3D()
+	// Set global options for the surface chart
+	surface.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: params.Title,
+		}),
+	)
+
+	// Prepare data for the surface chart
+	var surfaceData []opts.Chart3DData
+	for ruleName, tags := range params.Data {
+		for _, val := range tags {
+			// Convert string values to float64 for data processing
+			floatValue, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return err
+			}
+			surfaceData = append(surfaceData, opts.Chart3DData{Value: []interface{}{ruleName, val, floatValue}})
+		}
+	}
+
+	// Add series data to the surface chart
+	surface.AddSeries("Data", surfaceData)
+
+	// Render the chart to a file
+	return renderChartToFile(surface, params.Output)
+}
+
+// ThemeRiverChartGenerator is an implementation for generating theme river charts
+type ThemeRiverChartGenerator struct{}
+
+// Generate implements the function to generate theme river charts
+func (trcg *ThemeRiverChartGenerator) Generate(params ChartParams) error {
+	// Create a new theme river chart
+	themeRiver := charts.NewThemeRiver()
+	// Set global options for the theme river chart
+	themeRiver.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: params.Title,
+		}),
+	)
+
+	// Prepare data for the theme river chart
+	var themeRiverData []opts.ThemeRiverData
+	for ruleName, tags := range params.Data {
+		for _, val := range tags {
+			// Convert string values to float64 for data processing
+			floatValue, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return err
+			}
+			themeRiverData = append(themeRiverData, opts.ThemeRiverData{Name: ruleName, Value: floatValue})
+		}
+	}
+
+	// Add series data to the theme river chart
+	themeRiver.AddSeries("Data", themeRiverData)
+
+	// Render the chart to a file
+	return renderChartToFile(themeRiver, params.Output)
+}
+
+// TreeChartGenerator is an implementation for generating tree charts
+type TreeChartGenerator struct{}
+
+// Generate implements the function to generate tree charts
+func (tcg *TreeChartGenerator) Generate(params ChartParams) error {
+	// Create a new tree chart
+	tree := charts.NewTree()
+	// Set global options for the tree chart
+	tree.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: params.Title,
+		}),
+	)
+
+	// Prepare data for the tree chart
+	var treeData []opts.TreeData
+	for tag, tags := range params.Data {
+		for _, val := range tags {
+			// Convert string values to float64 for data processing
+			floatValue, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return err
+			}
+			// Convert float64 to int
+			intValue := int(floatValue)
+			treeData = append(treeData, opts.TreeData{Name: tag, Value: intValue})
+		}
+	}
+
+	// Add series data to the tree chart
+	tree.AddSeries("Data", treeData)
+
+	// Render the chart to a file
+	return renderChartToFile(tree, params.Output)
 }
