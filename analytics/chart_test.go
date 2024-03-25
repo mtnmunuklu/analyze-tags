@@ -10,10 +10,10 @@ import (
 func TestChartGenerator_Generate(t *testing.T) {
 	// Mock data
 	params := analytics.ChartParams{
-		Type:   analytics.RadarChart,
+		Type:   analytics.GraphChart,
 		Data:   map[string][]string{"Rule1": {"tag1", "tag3"}, "Rule2": {"tag1", "tag2"}},
-		Title:  "Radar Chart Test",
-		Output: "./data/output/test_radar_chart.html",
+		Title:  "Garph Chart Test",
+		Output: "./data/output/test_graph_chart.html",
 	}
 
 	// Generate chart generator
