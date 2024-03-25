@@ -28,12 +28,8 @@ const (
 	HeatmapChart ChartType = "heatmap"
 	// RadarChart represents the radar chart type
 	RadarChart ChartType = "radar"
-	// GaugeChart represents the gauge chart type
-	GaugeChart ChartType = "gauge"
 	// FunnelChart represents the funnel chart type
 	FunnelChart ChartType = "funnel"
-	// SankeyChart represents the sankey chart type
-	SankeyChart ChartType = "sankey"
 	// WordCloudChart represents the word cloud chart type
 	WordCloudChart ChartType = "wordcloud"
 	// TreemapChart represents the treemap chart type
@@ -94,12 +90,8 @@ func GenerateChart(params ChartParams) (ChartGenerator, error) {
 		return &HeatmapGenerator{}, nil
 	case RadarChart:
 		return &RadarChartGenerator{}, nil
-	case GaugeChart:
-		return &GaugeChartGenerator{}, nil
 	case FunnelChart:
 		return &FunnelChartGenerator{}, nil
-	case SankeyChart:
-		return &SankeyChartGenerator{}, nil
 	case WordCloudChart:
 		return &WordCloudChartGenerator{}, nil
 	case TreemapChart:
@@ -412,41 +404,6 @@ func (rcg *RadarChartGenerator) Generate(params ChartParams) error {
 	return renderChartToFile(radar, params.Output)
 }
 
-// GaugeChartGenerator is an implementation for generating gauge charts
-type GaugeChartGenerator struct{}
-
-// Generate implements the function to generate gauge charts
-func (gcg *GaugeChartGenerator) Generate(params ChartParams) error {
-	// Create a gauge chart
-	gauge := charts.NewGauge()
-	gauge.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: params.Title,
-		}),
-	)
-
-	// Prepare data for the gauge chart
-	var data []opts.GaugeData
-	for tag, tags := range params.Data {
-		var value float32 = 0
-		for _, val := range tags {
-			// Convert string values to float32 for data processing
-			floatValue, err := strconv.ParseFloat(val, 32)
-			if err != nil {
-				return err
-			}
-			value += float32(floatValue)
-		}
-		data = append(data, opts.GaugeData{Name: tag, Value: value})
-	}
-
-	// Add series data to the gauge chart
-	gauge.AddSeries("Data", data)
-
-	// Write the chart to a file
-	return renderChartToFile(gauge, params.Output)
-}
-
 // FunnelChartGenerator is an implementation for generating funnel charts
 type FunnelChartGenerator struct{}
 
@@ -462,17 +419,15 @@ func (fcg *FunnelChartGenerator) Generate(params ChartParams) error {
 
 	// Prepare data for the funnel chart
 	var data []opts.FunnelData
-	for tag, tags := range params.Data {
-		var value float32 = 0
-		for _, val := range tags {
-			// Convert string values to float32 for data processing
-			floatValue, err := strconv.ParseFloat(val, 32)
-			if err != nil {
-				return err
-			}
-			value += float32(floatValue)
+	tagCounts := make(map[string]int) // Map to store tag counts
+	for _, tags := range params.Data {
+		for _, tag := range tags {
+			tagCounts[tag]++
 		}
-		data = append(data, opts.FunnelData{Name: tag, Value: value})
+	}
+	for tag, count := range tagCounts {
+		label := fmt.Sprintf("%s: %d", tag, count)
+		data = append(data, opts.FunnelData{Name: label, Value: float32(count)})
 	}
 
 	// Add series data to the funnel chart
@@ -480,60 +435,6 @@ func (fcg *FunnelChartGenerator) Generate(params ChartParams) error {
 
 	// Write the chart to a file
 	return renderChartToFile(funnel, params.Output)
-}
-
-// SankeyChartGenerator is an implementation for generating sankey charts
-type SankeyChartGenerator struct{}
-
-// Generate implements the function to generate sankey charts
-func (scg *SankeyChartGenerator) Generate(params ChartParams) error {
-	// Create a sankey chart
-	sankey := charts.NewSankey()
-	sankey.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: params.Title,
-		}),
-	)
-
-	// Prepare data for the sankey chart
-	var links []opts.SankeyLink
-	var nodes []opts.SankeyNode
-	nodeID := make(map[string]int)
-	count := 0
-	for _, tags := range params.Data {
-		for i := 0; i < len(tags)-1; i++ {
-			sourceID, ok := nodeID[tags[i]]
-			if !ok {
-				sourceID = count
-				count++
-				nodeID[tags[i]] = sourceID
-				nodes = append(nodes, opts.SankeyNode{Name: tags[i]})
-			}
-			targetID, ok := nodeID[tags[i+1]]
-			if !ok {
-				targetID = count
-				count++
-				nodeID[tags[i+1]] = targetID
-				nodes = append(nodes, opts.SankeyNode{Name: tags[i+1]})
-			}
-			links = append(links, opts.SankeyLink{Source: fmt.Sprintf("%d", sourceID), Target: fmt.Sprintf("%d", targetID)})
-		}
-	}
-
-	// Set data for the sankey chart
-	sankey.AddSeries("sankey", nodes, links).
-		SetSeriesOptions(
-			charts.WithLineStyleOpts(opts.LineStyle{
-				Color:     "source",
-				Curveness: 0.5,
-			}),
-			charts.WithLabelOpts(opts.Label{
-				Show: true,
-			}),
-		)
-
-	// Write the chart to a file
-	return renderChartToFile(sankey, params.Output)
 }
 
 // WordCloudChartGenerator is an implementation for generating word cloud charts
@@ -549,17 +450,33 @@ func (wcg *WordCloudChartGenerator) Generate(params ChartParams) error {
 		}),
 	)
 
+	// Count the number of rules each tag belongs to
+	tagCounts := make(map[string]int)
+	ruleTagCounts := make(map[string]int)
+	for rule, tags := range params.Data {
+		for _, tag := range tags {
+			tagCounts[tag]++
+			ruleTagCounts[rule]++
+		}
+	}
+
 	// Prepare data for the word cloud chart
 	var data []opts.WordCloudData
-	for ruleName, tags := range params.Data {
-		for _, val := range tags {
-			// Convert string values to float32 for data processing
-			floatValue, err := strconv.ParseFloat(val, 32)
-			if err != nil {
-				return err
+	processedTags := make(map[string]bool) // Track processed tags to avoid duplicates
+	for rule, tags := range params.Data {
+		ruleWeight := float32(ruleTagCounts[rule])
+		for _, tag := range tags {
+			// If the tag has already been processed, skip it
+			if _, ok := processedTags[tag]; ok {
+				continue
 			}
-			data = append(data, opts.WordCloudData{Name: ruleName, Value: floatValue})
+			tagWeight := float32(tagCounts[tag])
+			// Append tag data
+			data = append(data, opts.WordCloudData{Name: tag, Value: tagWeight})
+			processedTags[tag] = true // Mark tag as processed
 		}
+		// Append rule data
+		data = append(data, opts.WordCloudData{Name: rule, Value: ruleWeight})
 	}
 
 	// Add series data to the word cloud chart
@@ -618,20 +535,28 @@ func (gcg *GraphChartGenerator) Generate(params ChartParams) error {
 	// Prepare data for the graph chart
 	nodes := make([]opts.GraphNode, 0)
 	links := make([]opts.GraphLink, 0)
+	// Keep track of added rule names
+	added := make(map[string]bool)
 	for ruleName, tags := range params.Data {
-		for _, val := range tags {
-			floatValue, err := strconv.ParseFloat(val, 32)
-			if err != nil {
-				return err
+		// Check if the rule name has already been added as a node
+		if !added[ruleName] {
+			// Create a node with the rule name
+			node := opts.GraphNode{Name: ruleName, Tooltip: &opts.Tooltip{Show: true}}
+			nodes = append(nodes, node)
+			added[ruleName] = true
+		}
+		// Create links between nodes based on the graph type
+		// Here, we are assuming a simple undirected graph
+		for _, tag := range tags {
+			if tag != ruleName {
+				links = append(links, opts.GraphLink{Source: ruleName, Target: tag})
 			}
-			// Create a new graph node and append it to the nodes slice
-			nodes = append(nodes, opts.GraphNode{Name: ruleName, Value: float32(floatValue)})
-			// Create links between nodes based on the graph type
-			// Here, we are assuming a simple undirected graph
-			for _, tag := range tags {
-				if tag != ruleName {
-					links = append(links, opts.GraphLink{Source: ruleName, Target: tag})
-				}
+			// Check if the tag has already been added as a node
+			if !added[tag] {
+				// Create a node with the tag name
+				node := opts.GraphNode{Name: tag, Tooltip: &opts.Tooltip{Show: true}}
+				nodes = append(nodes, node)
+				added[tag] = true
 			}
 		}
 	}
