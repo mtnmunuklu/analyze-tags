@@ -24,7 +24,6 @@ var (
 	useYara     bool
 )
 
-// Set up the command-line flags
 func init() {
 	flag.StringVar(&filePath, "filepath", "", "Name or path of the file or directory to read")
 	flag.StringVar(&fileContent, "filecontent", "", "Base64-encoded content of the file or directory to read")
@@ -36,19 +35,16 @@ func init() {
 	flag.BoolVar(&useYara, "yara", false, "Use Yara rules")
 	flag.Parse()
 
-	// If the version flag is provided, print version information and exit
 	if version {
 		fmt.Println("Analyze Tags version 1.0.0")
 		os.Exit(1)
 	}
 
-	// If the help flag is provided, print usage information and exit
 	if showHelp {
 		printUsage()
 		os.Exit(1)
 	}
 
-	// Check if both filecontent and configcontent are provided
 	if filePath == "" && fileContent == "" {
 		fmt.Println("Please provide either file paths or file contents.")
 		printUsage()
@@ -65,19 +61,17 @@ func printUsage() {
 }
 
 func formatJSONResult(identifier string, tags []string) []byte {
-	// Define a struct type named JSONResult to represent the JSON output fields.
+
 	type JSONResult struct {
 		Name string   `json:"Name"`
 		Tags []string `json:"Tags"`
 	}
 
-	// Create an instance of the JSONResult struct.
 	jsonResult := JSONResult{
 		Name: identifier,
 		Tags: tags,
 	}
 
-	// Marshal the JSONResult struct into JSON data.
 	jsonData, err := json.MarshalIndent(jsonResult, "", "  ")
 	if err != nil {
 		fmt.Println("Error encoding JSON:", err)
@@ -88,19 +82,17 @@ func formatJSONResult(identifier string, tags []string) []byte {
 }
 
 func main() {
-	// Ensure either Sigma or Yara flag is provided
+
 	if !useSigma && !useYara {
 		fmt.Println("Please provide either --sigma or --yara flag to specify the type of rules.")
 		printUsage()
 		os.Exit(1)
 	}
 
-	// Read the contents of the file(s) specified by the filepath flag or filecontent flag
 	fileContents := make(map[string][]byte)
 
-	// Check if file paths are provided
 	if filePath != "" {
-		// Check if the filepath is a directory
+
 		fileInfo, err := os.Stat(filePath)
 		if err != nil {
 			fmt.Println("Error getting file/directory info:", err)
@@ -108,14 +100,14 @@ func main() {
 		}
 
 		if fileInfo.IsDir() {
-			// filePath is a directory, so walk the directory to read all the files inside it
+
 			filepath.Walk(filePath, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					fmt.Println("Error accessing file:", err)
 					return nil
 				}
 				if !info.IsDir() {
-					// read file content
+
 					content, err := os.ReadFile(path)
 					if err != nil {
 						fmt.Println("Error reading file:", err)
@@ -126,7 +118,7 @@ func main() {
 				return nil
 			})
 		} else {
-			// filePath is a file, so read its contents
+
 			fileContents[filePath], err = os.ReadFile(filePath)
 			if err != nil {
 				fmt.Println("Error reading file:", err)
@@ -134,12 +126,12 @@ func main() {
 			}
 		}
 	} else if fileContent != "" {
-		// Check if the filecontent is a directory
+
 		lines := strings.Split(fileContent, "\n")
 		if len(lines) > 1 {
-			// fileContent is a directory, so read all lines as separate files
+
 			for _, line := range lines {
-				// decode base64 content
+
 				decodedContent, err := base64.StdEncoding.DecodeString(line)
 				if err != nil {
 					fmt.Println("Error decoding base64 content:", err)
@@ -148,8 +140,7 @@ func main() {
 				fileContents[line] = decodedContent
 			}
 		} else {
-			// fileContent is a file, so read its content
-			// decode base64 content
+
 			decodedContent, err := base64.StdEncoding.DecodeString(fileContent)
 			if err != nil {
 				fmt.Println("Error decoding base64 content:", err)
@@ -159,7 +150,6 @@ func main() {
 		}
 	}
 
-	// Loop over each file and parse its contents as a Sigma rule
 	for _, fileContent := range fileContents {
 		if useSigma {
 			sigmaRule, err := sigma.ParseRule(fileContent)
@@ -170,7 +160,6 @@ func main() {
 
 			var output string
 
-			// Print the results of the query
 			if outputJSON {
 				jsonResult := formatJSONResult(sigmaRule.Title, sigmaRule.Tags)
 				output = string(jsonResult)
@@ -178,12 +167,10 @@ func main() {
 				output = "Name: " + sigmaRule.Title + " Tags: " + strings.Join(sigmaRule.Tags, " ")
 			}
 
-			// Check if outputPath is provided
 			if outputPath != "" {
-				// Create the output file path using the Name field from the rule
+
 				outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.json", sigmaRule.Title))
 
-				// Write the output string to the output file
 				err := os.WriteFile(outputFilePath, []byte(output), 0644)
 				if err != nil {
 					fmt.Println("Error writing output to file:", err)
@@ -205,7 +192,6 @@ func main() {
 
 				var output string
 
-				// Print the results of the query
 				if outputJSON {
 					jsonResult := formatJSONResult(yaraRule.Identifier, yaraRule.Tags)
 					output = string(jsonResult)
@@ -213,12 +199,10 @@ func main() {
 					output = "Name: " + yaraRule.Identifier + " Tags: " + strings.Join(yaraRule.Tags, " ")
 				}
 
-				// Check if outputPath is provided
 				if outputPath != "" {
-					// Create the output file path using the Name field from the rule
+
 					outputFilePath := filepath.Join(outputPath, fmt.Sprintf("%s.json", yaraRule.Identifier))
 
-					// Write the output string to the output file
 					err := os.WriteFile(outputFilePath, []byte(output), 0644)
 					if err != nil {
 						fmt.Println("Error writing output to file:", err)
