@@ -48,6 +48,37 @@ func renderChartToFile(chart components.Charter, outputPath string) error {
 	return nil
 }
 
+func FindChartType(chart string) (ChartType, error) {
+	switch chart {
+	case "bar":
+		return BarChart, nil
+	case "line":
+		return LineChart, nil
+	case "scatter":
+		return ScatterPlot, nil
+	case "pie":
+		return PieChart, nil
+	case "boxplot":
+		return BoxPlotChart, nil
+	case "heat":
+		return HeatmapChart, nil
+	case "radar":
+		return RadarChart, nil
+	case "funnel":
+		return FunnelChart, nil
+	case "wordcloud":
+		return WordCloudChart, nil
+	case "treemap":
+		return TreemapChart, nil
+	case "graph":
+		return GraphChart, nil
+	case "tree":
+		return TreeChart, nil
+	default:
+		return "", fmt.Errorf("unsupported chart type: %s", chart)
+	}
+}
+
 func GenerateChart(params ChartParams) (ChartGenerator, error) {
 	switch params.Type {
 	case BarChart:
@@ -86,7 +117,6 @@ type ChartGenerator interface {
 type BarChartGenerator struct{}
 
 func (bcg *BarChartGenerator) Generate(params ChartParams) error {
-
 	bar := charts.NewBar()
 	bar.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -103,9 +133,13 @@ func (bcg *BarChartGenerator) Generate(params ChartParams) error {
 
 	var xAxisData []string
 	var seriesData []opts.BarData
+	added := make(map[string]bool)
 	for tag, count := range tagCounts {
-		xAxisData = append(xAxisData, tag)
-		seriesData = append(seriesData, opts.BarData{Value: count})
+		if !added[tag] {
+			xAxisData = append(xAxisData, tag)
+			seriesData = append(seriesData, opts.BarData{Value: count})
+			added[tag] = true
+		}
 	}
 
 	bar.SetXAxis(xAxisData).
@@ -122,7 +156,6 @@ func (bcg *BarChartGenerator) Generate(params ChartParams) error {
 type LineChartGenerator struct{}
 
 func (lcg *LineChartGenerator) Generate(params ChartParams) error {
-
 	line := charts.NewLine()
 	line.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -153,7 +186,6 @@ func (lcg *LineChartGenerator) Generate(params ChartParams) error {
 type ScatterPlotGenerator struct{}
 
 func (spg *ScatterPlotGenerator) Generate(params ChartParams) error {
-
 	scatter := charts.NewScatter()
 	scatter.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -183,7 +215,6 @@ func (spg *ScatterPlotGenerator) Generate(params ChartParams) error {
 type PieChartGenerator struct{}
 
 func (pcg *PieChartGenerator) Generate(params ChartParams) error {
-
 	pie := charts.NewPie()
 	pie.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -216,7 +247,6 @@ func (pcg *PieChartGenerator) Generate(params ChartParams) error {
 type BoxPlotGenerator struct{}
 
 func (bpg *BoxPlotGenerator) Generate(params ChartParams) error {
-
 	boxplot := charts.NewBoxPlot()
 	boxplot.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -247,7 +277,6 @@ func (bpg *BoxPlotGenerator) Generate(params ChartParams) error {
 type HeatmapGenerator struct{}
 
 func (hmg *HeatmapGenerator) Generate(params ChartParams) error {
-
 	heatmap := charts.NewHeatMap()
 
 	heatmap.SetGlobalOptions(
@@ -296,7 +325,6 @@ func (hmg *HeatmapGenerator) Generate(params ChartParams) error {
 type RadarChartGenerator struct{}
 
 func (rcg *RadarChartGenerator) Generate(params ChartParams) error {
-
 	radar := charts.NewRadar()
 	radar.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -330,7 +358,6 @@ func (rcg *RadarChartGenerator) Generate(params ChartParams) error {
 type FunnelChartGenerator struct{}
 
 func (fcg *FunnelChartGenerator) Generate(params ChartParams) error {
-
 	funnel := charts.NewFunnel()
 	funnel.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -358,7 +385,6 @@ func (fcg *FunnelChartGenerator) Generate(params ChartParams) error {
 type WordCloudChartGenerator struct{}
 
 func (wcg *WordCloudChartGenerator) Generate(params ChartParams) error {
-
 	wordCloud := charts.NewWordCloud()
 	wordCloud.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -401,7 +427,6 @@ func (wcg *WordCloudChartGenerator) Generate(params ChartParams) error {
 type TreemapChartGenerator struct{}
 
 func (tcg *TreemapChartGenerator) Generate(params ChartParams) error {
-
 	treemap := charts.NewTreeMap()
 	treemap.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
@@ -428,7 +453,6 @@ func (tcg *TreemapChartGenerator) Generate(params ChartParams) error {
 type GraphChartGenerator struct{}
 
 func (gcg *GraphChartGenerator) Generate(params ChartParams) error {
-
 	graph := charts.NewGraph()
 
 	graph.SetGlobalOptions(

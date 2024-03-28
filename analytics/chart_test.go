@@ -8,7 +8,6 @@ import (
 )
 
 func TestChartGenerator_Generate(t *testing.T) {
-
 	params := analytics.ChartParams{
 		Type:   analytics.TreeChart,
 		Data:   map[string][]string{"Rule1": {"tag1", "tag3", "tag2"}, "Rule2": {"tag1", "tag2"}},
