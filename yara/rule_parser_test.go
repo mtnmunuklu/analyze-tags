@@ -1,4 +1,4 @@
-package tests
+package yara_test
 
 import (
 	"fmt"
