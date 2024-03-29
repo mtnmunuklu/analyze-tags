@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mtnmunuklu/analyze-tags/analytics"
+	"github.com/mtnmunuklu/analyze-tags/csiem"
 	"github.com/mtnmunuklu/analyze-tags/sigma"
 	"github.com/mtnmunuklu/analyze-tags/yara"
 )
@@ -21,6 +22,7 @@ var (
 	version     bool
 	useSigma    bool
 	useYara     bool
+	useCsiem    bool
 	outputChart bool
 	chartType   string
 	outputExcel bool
@@ -33,6 +35,7 @@ func init() {
 	flag.BoolVar(&version, "version", false, "Show version information")
 	flag.BoolVar(&useSigma, "sigma", false, "Use Sigma rules")
 	flag.BoolVar(&useYara, "yara", false, "Use Yara rules")
+	flag.BoolVar(&useCsiem, "csiem", false, "Use Csiem rules")
 	flag.BoolVar(&outputChart, "chart", false, "Generate chart")
 	flag.StringVar(&chartType, "chartType", "", "Specify one or more chart types to generate (comma-separated). Available chart types: bar, line, scatter, pie, boxplot, heatmap, radar, funnel, wordcloud, treemap, graph, tree")
 	flag.BoolVar(&outputExcel, "excel", false, "Generate excel")
@@ -55,14 +58,33 @@ func init() {
 		printUsage()
 		os.Exit(1)
 	}
+
+	if !useSigma && !useYara && !useCsiem {
+		fmt.Println("Please specify the type of rules using either the --sigma, --yara, or --csiem flag.")
+		printUsage()
+		os.Exit(1)
+	}
+
+	if !outputChart && !outputExcel {
+		fmt.Println("Please specify the output type using either the --chart or --excel flag.")
+		printUsage()
+		os.Exit(1)
+	}
+
+	if !outputChart && chartType == "" {
+		fmt.Println("Please provide the chart type.")
+		printUsage()
+		os.Exit(1)
+	}
+
 }
 
 func printUsage() {
-	fmt.Println("Usage: analyze-tags -sigma/-yara -filepath <path> [flags]")
+	fmt.Println("Usage: analyze-tags -sigma/-yara/-csiem -filepath <path> [flags]")
 	fmt.Println("Flags:")
 	flag.PrintDefaults()
 	fmt.Println("Example:")
-	fmt.Println("  analyze-tags -sigma/-yara -filepath /path/to/file")
+	fmt.Println("  analyze-tags -sigma/-yara/-csiem -filepath /path/to/file -chart -chartType \"wordcloud\"")
 }
 
 func generateChart(data map[string][]string, chartTypes []string) {
@@ -98,23 +120,6 @@ func generateChart(data map[string][]string, chartTypes []string) {
 }
 
 func main() {
-	if !useSigma && !useYara {
-		fmt.Println("Please provide either --sigma or --yara flag to specify the type of rules.")
-		printUsage()
-		os.Exit(1)
-	}
-
-	if !outputChart && !outputExcel {
-		fmt.Println("Please provide either --chart or --excel flag to specify the output type.")
-		printUsage()
-		os.Exit(1)
-	}
-
-	if !outputChart && chartType == "" {
-		fmt.Println("Please provide the chart type.")
-		printUsage()
-		os.Exit(1)
-	}
 
 	fileContents := make(map[string][]byte)
 
@@ -194,6 +199,15 @@ func main() {
 			for _, yaraRule := range yaraRuleSet.Rules {
 				data[yaraRule.Identifier] = yaraRule.Tags
 			}
+		} else if useCsiem {
+			csiemRule, err := csiem.ParseRule(fileContent)
+			if err != nil {
+				fmt.Println("Error parsing rule:", err)
+				continue
+			}
+
+			data[csiemRule.Name] = csiemRule.Tags
+
 		}
 	}
 
