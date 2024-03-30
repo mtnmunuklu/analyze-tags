@@ -71,7 +71,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	if !outputChart && chartType == "" {
+	if outputChart && chartType == "" {
 		fmt.Println("Please provide the chart type.")
 		printUsage()
 		os.Exit(1)
@@ -116,6 +116,21 @@ func generateChart(data map[string][]string, chartTypes []string) {
 		if _, err := os.Stat(params.Output); os.IsNotExist(err) {
 			fmt.Println("Chart file was not created:", err)
 		}
+	}
+}
+
+func generateExcel(data map[string][]string) {
+	output := fmt.Sprintf("%s/output.xlsx", outputPath)
+	params := analytics.ExcelParams{
+		SheetName: "Data",
+		Data:      data,
+		Output:    output,
+	}
+
+	err := params.ToExcel()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
 	}
 }
 
@@ -214,5 +229,7 @@ func main() {
 	if outputChart {
 		chartTypes := strings.Split(chartType, ",")
 		generateChart(data, chartTypes)
+	} else if outputExcel {
+		generateExcel(data)
 	}
 }
