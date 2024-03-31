@@ -84,7 +84,7 @@ Analyze-Tags provides several command-line flags for configuring its behavior:
 - `-filepath`: Specifies the name or path of the file or directory to read.
 - `-filecontent`: Specifies the base64-encoded content of the file or directory to read.
 - `-output`: Specifies the output directory for writing files.
-- `chart`: Specifies whether to generate charts.
+- `-chart`: Specifies whether to generate charts.
 - `-chartType`: Specifies one or more chart types to generate (comma-separated).
 - `-excel`: Generates Excel files.
 - `-sigma`, `-yara`, `-csiem`: Specifies the type of rules to use.
